@@ -6,12 +6,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
-def syntheticData(num_samples, seq_length):
-    input_sequences = torch.rand(num_samples, seq_length)
+def syntheticData(num_samples, seq_length, input_size):
+    input_sequences = torch.rand(num_samples, seq_length, input_size)
 
     # Step 2: Post-process each sequence
     for sequence in input_sequences:
-        i = torch.randint(20, 31, size=(1,))  # Sample i from [20, 30]
+        i = torch.randint(20, 30, size=(1,))  # Sample i from [20, 30]
         start_index = max(0, i - 5)
         end_index = min(seq_length, i + 6)
         sequence[start_index:end_index] *= 0.1
