@@ -41,8 +41,9 @@ def Q1C1():
     plt.show()
 
 def Q1C2():
+    torch.manual_seed(42)
 
-    num_of_seq = 5000 
+    num_of_seq = 10000 
     seq_length = 50
     input_size = 1
     data = Data.syntheticData(num_of_seq, seq_length, input_size)  # 100 sequences, each of length 20
@@ -51,21 +52,22 @@ def Q1C2():
     val_tensor, test_tensor = train_test_split(temp_tensor, test_size=0.5, random_state=18)
     
     train_dataset = TensorDataset(train_tensor)
-    train_dataloader = DataLoader(train_dataset, batch_size=400, shuffle=True)    
+    train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True)    
     
     val_dataset = TensorDataset(val_tensor)
-    val_dataloader = DataLoader(val_dataset, batch_size=400, shuffle=True)    
+    val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=True)    
 
-    epochs = 1000
+    epochs = 100
     models_dict = {}
 
     param_grid = {
     'input_size': [input_size],
     'num_layers': [1],
-    'hidden_size': [10, 20, 30],
-    'learning_rate': [0.001, 0.005, 0.01],
+    'hidden_size': [32, 40, 48],
+    'learning_rate': [0.01, 0.05, 0.075],
     'clip_value' : [1.0, 1.5, 2.0],
     'seq_length': [seq_length],
+    'numC': [1],
     }
     
     best_params = None
