@@ -1,22 +1,13 @@
 import torch
+# Example tensor of shape (k, l, 1)
+tensor = torch.randn((3, 4, 1))
 
-def get_max_indices(matrix):
-    # Find the indices of the maximum values along each row
-    max_indices = torch.argmax(matrix, dim=1, keepdim=True)
-    
-    return max_indices
+# Drop the line at index 1 along the second dimension
+tensor_after_drop = torch.cat((tensor[:, :0, :], tensor[:, 1:, :]), dim=1)
 
-# Example usage:
-# Create a sample matrix
-sample_matrix = torch.tensor([[1, 3, 5],
-                             [2, 8, 6],
-                             [0, 7, 4]])
+# Print the original and modified tensors
+print("Original Tensor:")
+print(tensor)
 
-# Get the matrix of maximum indices
-result_matrix = get_max_indices(sample_matrix)
-
-print("Original Matrix:")
-print(sample_matrix)
-print("\nMatrix of Maximum Indices:")
-print(result_matrix)
-print(result_matrix.shape)
+print("\nTensor after dropping line at index 1:")
+print(tensor_after_drop)

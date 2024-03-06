@@ -57,7 +57,7 @@ def Q1C2():
     val_dataset = TensorDataset(val_tensor)
     val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=True)    
 
-    epochs = 100
+    epochs = 40
     models_dict = {}
 
     param_grid = {
@@ -68,6 +68,7 @@ def Q1C2():
     'clip_value' : [1.0, 1.5, 2.0],
     'seq_length': [seq_length],
     'numC': [1],
+    'apprx': [0],
     }
     
     best_params = None
@@ -75,6 +76,7 @@ def Q1C2():
     for params in ParameterGrid(param_grid):
         print(str(params))
         model = lstm.LSTM_Model(**params)
+        model.model.double()
         model.train(train_dataloader, epochs)
         models_dict[str(params)] = [model, model.eval(val_dataloader)]
         print(f'{str(params)} - {models_dict[str(params)][1]}')

@@ -1,7 +1,8 @@
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
-
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
 
 def shape(x):
     print(x.shape)
@@ -24,22 +25,38 @@ def reconstruct(model, data):
         # Select rows using the random indices
         data = data[random_index, :].unsqueeze(0)
         output, _ = model.model(data)
-        print("Original Data shape", data.shape)
-        print("Reconstructed Data shape", output.shape)
         # Convert tensors to numpy arrays for plotting
-        original_data = data.detach().numpy().flatten().tolist()
-        reconstructed_data = output.detach().numpy().flatten().tolist()
+        if model.input_size == 1:
+            original_data = data.detach().numpy().flatten().tolist()
+            reconstructed_data = output.detach().numpy().flatten().tolist()
 
-        plt.plot(range(len(original_data)), original_data,label='Original Data')
-        plt.plot(range(len(original_data)), reconstructed_data, label='Reconstructed Data')
+            plt.plot(range(len(original_data)), original_data,label='Original Data')
+            plt.plot(range(len(original_data)), reconstructed_data, label='Reconstructed Data')
 
-        # Add labels and legend
-        plt.xlabel('Index')
-        plt.ylabel('Values')
-        plt.legend()
+            # Add labels and legend
+            plt.xlabel('Index')
+            plt.ylabel('Values')
+            plt.legend()
 
-        # Show the plot
-        plt.show()    
+            # Show the plot
+            plt.show()   
+        else:
+            original_data = data.detach().numpy()#
+            reconstructed_data = output.detach().numpy()#
+            titles = ['Open', 'High', 'Low', 'Close']
+            for i, name in enumerate(titles):
+                original_feature = original_data[:,:,i].flatten().tolist()
+                recon_feature = reconstructed_data[:,:,i].flatten().tolist()
+                plt.plot(range(len(original_feature)), original_feature,label='Original ' + name)
+                plt.plot(range(len(original_feature)), recon_feature, label='Reconstructed ' + name)
+    
+            # Add labels and legend
+                plt.xlabel('Time Stamp')
+                plt.ylabel('Normalized Values')
+            plt.legend()
+    
+            # Show the plot
+            plt.show() 
 
 
 def reImage(model, dataloader):
