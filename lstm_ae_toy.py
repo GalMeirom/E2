@@ -14,17 +14,12 @@ def Q1C1():
     # Step 1: Generate 10,000 input sequences of length 50 with values in the range [0, 1] as PyTorch tensors
     num_samples = 10000
     seq_length = 50
-    input_sequences = Data.syntheticData(num_samples, seq_length)
+    input_sequences = Data.syntheticData(num_samples, seq_length, 1)
 
     # Step 3: Split the data
     X_train_tensor, X_temp_tensor = train_test_split(input_sequences, test_size=0.4, random_state=18)
     X_val_tensor, X_test_tensor = train_test_split(X_temp_tensor, test_size=0.5, random_state=18)
 
-
-    # # Step 4: Print some example sequences
-    print("Example sequences from training set:")
-    for i in range(3):
-        print("Sequence", i+1, ":", X_train_tensor[i])
 
     # # Step 5: Plot some example sequences
     plt.figure(figsize=(10, 6))
@@ -57,15 +52,28 @@ def Q1C2():
     val_dataset = TensorDataset(val_tensor)
     val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=True)    
 
-    epochs = 40
+    epochs = 200
     models_dict = {}
 
+    # The Grid Search
+    # param_grid = {
+    # 'input_size': [input_size],
+    # 'num_layers': [1],
+    # 'hidden_size': [32, 40, 48],
+    # 'learning_rate': [0.01, 0.05, 0.075],
+    # 'clip_value' : [1.0, 1.5, 2.0],
+    # 'seq_length': [seq_length],
+    # 'numC': [1],
+    # 'apprx': [0],
+    # }
+
+    # The Grid Search results
     param_grid = {
     'input_size': [input_size],
     'num_layers': [1],
-    'hidden_size': [32, 40, 48],
-    'learning_rate': [0.01, 0.05, 0.075],
-    'clip_value' : [1.0, 1.5, 2.0],
+    'hidden_size': [48],
+    'learning_rate': [0.01],
+    'clip_value' : [1.5],
     'seq_length': [seq_length],
     'numC': [1],
     'apprx': [0],
@@ -81,7 +89,7 @@ def Q1C2():
         models_dict[str(params)] = [model, model.eval(val_dataloader)]
         print(f'{str(params)} - {models_dict[str(params)][1]}')
         print(params['input_size'])
-        ut.reconstruct(models_dict[str(params)][0], val_tensor)
+        ut.reconstruct(models_dict[str(params)][0], val_tensor, True)
     
     best_params = min(models_dict, key=lambda k: models_dict[k][1])
     best_model = models_dict[best_params]

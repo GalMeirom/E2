@@ -68,16 +68,16 @@ class LSTMAutoencoder(nn.Module):
                 return rec_output, app
             else:
                 size = x.size(1)
-                acc, _ = torch.split(x, size / 2, dim=1)
+                acc, _ = torch.split(x, int(size / 2), dim=1)
                 curr = acc.clone()
                 self.set_apprx(0)
                 while acc.size(1) < size:
                     _, (hid, t) = self.encoder(curr)
                     acc_latent = hid[-1]
-                    pred = torch.tanh(self.approx(acc_latent))
-                    curr = torch.stack([curr, pred], dim= 1)
-                    curr = torch.cat((curr[:, :0, :], curr[:, 1:, :]), dim=1)
-                    acc = torch.stack([acc, pred], dim=1)
+                    pred = torch.tanh(self.approx(acc_latent)).unsqueeze(2)
+                    curr = torch.cat([curr, pred], dim= 1)
+                    curr = curr[:, 1:, :]
+                    acc = torch.cat([acc, pred], dim=1)
                 self.set_apprx(2)
                 return rec_output, acc
         else:
@@ -100,6 +100,7 @@ class LSTM_Model():
             total_train_loss = 0.0
             for batch in train_dataloader:
                 batch_data = batch[0]
+                batch_data = batch_data.double()
                 if len(batch_data.shape) == 4:
                     batch_data = batch_data.squeeze(1)
                 output, _ = self.model(batch_data)
@@ -146,6 +147,7 @@ class LSTM_Model_wPred():
             label_train_loss = 0.0
             for batch in train_dataloader:
                 batch_data = batch[0]
+                batch_data = batch_data.double()
                 batch_label = batch[1]
                 if len(batch_data.shape) == 4:
                     batch_data = batch_data.squeeze(1)
@@ -185,6 +187,7 @@ class LSTM_Model_wPred():
         with torch.no_grad():
             for batch in val_dataloader:
                 batch_data = batch[0]
+                batch_data = batch_data.double()
                 batch_label = batch[1]
                 if len(batch_data.shape) == 4:
                     batch_data = batch_data.squeeze(1)
@@ -201,7 +204,8 @@ class LSTM_Model_wPred():
     
     def train_approx(self, train_dataloader):
             self.model.train()
-            train_loss = 0.0
+            rec_train_loss = 0.0
+            pred_train_loss = 0.0
             for batch in train_dataloader:
                 batch_data = batch[0]
                 next = batch_data[:, :, 1:2]
@@ -214,13 +218,15 @@ class LSTM_Model_wPred():
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                 self.optimizer.step()
-                train_loss = train_loss + loss1.item() + loss2.item()
+                rec_train_loss = rec_train_loss + loss1.item()
+                pred_train_loss = pred_train_loss + loss2.item()
                 
-            return train_loss / len(train_dataloader.dataset)
+            return rec_train_loss / len(train_dataloader.dataset), pred_train_loss / len(train_dataloader.dataset)
     
     def val_approx(self, val_dataloader):
         self.model.eval()
-        total_val_loss = 0.0
+        rec_val_loss = 0.0
+        pred_val_loss = 0.0
         with torch.no_grad():
             for batch in val_dataloader:
                 batch_data = batch[0]
@@ -229,8 +235,8 @@ class LSTM_Model_wPred():
                 output, approx = self.model(batch_data)
                 loss1 = self.criterionMSE(output, batch_data)
                 loss2 = self.criterionMSE(approx, next)
-                total_val_loss = total_val_loss + loss1.item() + loss2.item()
-            avg_val_loss = total_val_loss / len(val_dataloader.dataset)
-            return avg_val_loss
+                rec_val_loss = rec_val_loss + loss1.item()
+                pred_val_loss = pred_val_loss + loss2.item()
+            return rec_val_loss / len(val_dataloader.dataset), pred_val_loss / len(val_dataloader.dataset)
             
 

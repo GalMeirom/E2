@@ -9,6 +9,7 @@ from sklearn.model_selection import ParameterGrid
 import utils as ut
 import lstm
 from sklearn.preprocessing import MinMaxScaler
+from datetime import datetime
 
 
 # 0       symbol        date     open     high      low    close    volume
@@ -34,6 +35,11 @@ def C1():
     amzn_data = data[data['symbol'] == 'AMZN']
     googl_data = googl_data[['date', 'high']]
     amzn_data = amzn_data[['date', 'high']]
+    def convert_date(date_string):
+            date_object = datetime.strptime(date_string, "%Y-%m-%d")
+            return date_object.strftime("%d-%m-%Y")
+    googl_data['date'] = googl_data['date'].apply(convert_date)
+    amzn_data['date'] = amzn_data['date'].apply(convert_date)
     goog_dates = googl_data['date'].values.astype(str)
     goog_high = googl_data['high'].values.astype(float)
     amzn_dates = amzn_data['date'].values.astype(str)
@@ -75,7 +81,7 @@ def C2():
 
     input_size = 1
     
-    epochs = 300
+    epochs = 60
     models_dict = {}
 
     param_grid = {
@@ -96,16 +102,68 @@ def C2():
         model.model.double()
         model.train(train_dataloader, epochs)
         models_dict[str(params)] = [model, model.eval(val_dataloader)]
-        ut.reconstruct(models_dict[str(params)][0], val_dataloader.dataset.tensors[0])
+        #ut.reconstruct(models_dict[str(params)][0], val_dataloader.dataset.tensors[0], True)
+        
+        df = pd.read_csv('Data\SP 500 Stock Prices 2014-2017.csv', header=None)
+        df.columns = df.iloc[0]
+
+        # Drop the first row
+        df = df[1:].reset_index(drop=True)
+        data = df.dropna()
+        def convert_date(date_string):
+            date_object = datetime.strptime(date_string, "%Y-%m-%d")
+            return date_object.strftime("%d-%m-%Y")
+
+        # Apply the function to the entire column
+        data['dates'] = data['date'].values.astype(str)
+        data['dates'] = data['dates'].apply(convert_date)
+        data['date'] = pd.to_datetime(data['date'])
+        data['t0'] = (data['date'] - data['date'].min()).dt.days.astype(int)
+        data = data.drop(['volume', 'open', 'close', 'low'], axis= 1)
+        data['high'] = pd.to_numeric(data['high'])
+        df_sorted = data.sort_values(by=['symbol', 't0'])
+        rand_stocks = ut.get_rand_stocks(3, df_sorted, seq_length)
+
+        def extract_consecutive_chunks(group):
+            chunks = [group.iloc[i:i+seq_length].reset_index(drop=True).drop(['symbol', 't0'], axis=1) for i in range(0, len(group), seq_length) if len(group[i:i+seq_length]) == seq_length]
+            return chunks
+
+        def normalize(df): 
+            min = df['high'].min()
+            norm = (df['high'].max() - min)
+            df['high'] = (df['high'] - min)/norm
+            return [df, min, norm]
+        
+
+        for i, stock_data in enumerate(rand_stocks):
+            dates = stock_data['dates'].values.astype(str)
+            dates_numerical = np.arange(len(dates))
+            stock_data = stock_data[['symbol', 'high', 't0']]
+            stock_name = stock_data['symbol'].to_list()[0]
+            stock_data = stock_data.sort_values(by=['symbol', 't0'])
+            grouped_df = stock_data.groupby('symbol').apply(extract_consecutive_chunks)
+            df_list = [item for sublist in grouped_df.values for item in sublist]
+            df_list_norm = [normalize(df) for df in df_list]
+            recon = ut.reconstruct(models_dict[str(params)][0], df_list_norm, False)
+            plt.plot(dates_numerical, recon[0], label=f'Original {stock_name} Signal')
+            plt.plot(dates_numerical, recon[1], label=f'Reconstructed {stock_name} Signal')
+            plt.xticks(dates_numerical[::100], dates[::100], rotation=45)
+            plt.xlabel('Dates')
+            plt.ylabel('Stock Daily high price')
+            plt.title(f'{stock_name} highs 2014 - 2017')
+            plt.legend()
+            plt.show()    
+        
+
 
 def C3():
-    seq_length = 20
+    seq_length = 40
     
     train_dataloader, val_dataloader = Data.snp500C3(seq_length+1)
 
     input_size = 1
     
-    epochs = 10
+    epochs = 60
 
     param_grid = {
     'input_size': [input_size],
@@ -125,12 +183,12 @@ def C3():
         model = lstm.LSTM_Model_wPred(**params)
         model.model.double()
         for i in range(epochs):
-            avg_train_loss = model.train_approx(train_dataloader)
-            print(f'Epoch [{i+1}/{epochs}], AVG Training Loss: {avg_train_loss}')
-            training_losses.append(avg_train_loss)
-            val_loss = model.val_approx(val_dataloader)
-            print(f'Epoch [{i+1}/{epochs}], AVG Val Loss: {val_loss}')
-            validation_losses.append(val_loss)
+            avg_rec_train_loss, avg_pred_train_loss = model.train_approx(train_dataloader)
+            print(f'Epoch [{i+1}/{epochs}], AVG Training Loss: {avg_rec_train_loss + avg_pred_train_loss}')
+            training_losses.append(avg_rec_train_loss + avg_pred_train_loss)
+            avg_rec_val_loss, avg_pred_test_loss = model.val_approx(val_dataloader)
+            print(f'Epoch [{i+1}/{epochs}], AVG Val Loss: {avg_rec_val_loss + avg_pred_test_loss}')
+            validation_losses.append(avg_pred_test_loss)
 
         fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(8, 6))
 
@@ -138,14 +196,14 @@ def C3():
         ax1.plot(range(1, epochs+1), training_losses, label='Training Loss', color='blue')
         ax1.set_xlabel('Ephocs')
         ax1.set_ylabel('Training Loss')
-        ax1.set_title('Average Training Loss vs ephocs')
+        ax1.set_title('Average Training Loss per subsequence vs Ephocs')
         ax1.legend()
 
         # Plot the second Y array on the second subplot
-        ax2.plot(range(1, epochs+1), validation_losses, label='Validation Loss', color='red')
+        ax2.plot(range(1, epochs+1), validation_losses, label='Testing Prediction Loss', color='red')
         ax2.set_xlabel('Ephocs')
-        ax2.set_ylabel('Validation Loss')
-        ax2.set_title('Average Validation Loss vs ephocs')
+        ax2.set_ylabel('Testing Prediction Loss')
+        ax2.set_title('Average Testing Prediction Loss per subsequence vs Ephocs')
         ax2.legend()
 
         # Adjust layout for better spacing
@@ -155,13 +213,13 @@ def C3():
         plt.show()
 
 def C4():
-    seq_length = 20
+    seq_length = 40
     
     train_dataloader, val_dataloader = Data.snp500C4(seq_length)
 
     input_size = 1
     
-    epochs = 10
+    epochs = 60
 
     param_grid = {
     'input_size': [input_size],
@@ -181,12 +239,12 @@ def C4():
         model = lstm.LSTM_Model_wPred(**params)
         model.model.double()
         for i in range(epochs):
-            avg_train_loss = model.train_approx(train_dataloader)
-            print(f'Epoch [{i+1}/{epochs}], AVG Training Loss: {avg_train_loss}')
-            training_losses.append(avg_train_loss)
-            val_loss = model.val_approx(val_dataloader)
-            print(f'Epoch [{i+1}/{epochs}], AVG Val Loss: {val_loss}')
-            validation_losses.append(val_loss)
+            avg_rec_train_loss, avg_pred_train_loss = model.train_approx(train_dataloader)
+            print(f'Epoch [{i+1}/{epochs}], AVG Training Loss: {avg_rec_train_loss + avg_pred_train_loss}')
+            training_losses.append(avg_rec_train_loss + avg_pred_train_loss)
+            avg_rec_val_loss, avg_pred_test_loss = model.val_approx(val_dataloader)
+            print(f'Epoch [{i+1}/{epochs}], AVG Val Loss: {avg_rec_val_loss + avg_pred_test_loss}')
+            validation_losses.append(avg_pred_test_loss)
 
         fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(8, 6))
 
@@ -194,14 +252,14 @@ def C4():
         ax1.plot(range(1, epochs+1), training_losses, label='Training Loss', color='blue')
         ax1.set_xlabel('Ephocs')
         ax1.set_ylabel('Training Loss')
-        ax1.set_title('Average Training Loss vs ephocs')
+        ax1.set_title('Average Training Loss per subsequence vs Ephocs')
         ax1.legend()
 
         # Plot the second Y array on the second subplot
-        ax2.plot(range(1, epochs+1), validation_losses, label='Validation Loss', color='red')
+        ax2.plot(range(1, epochs+1), validation_losses, label='Testing Prediction Loss', color='red')
         ax2.set_xlabel('Ephocs')
-        ax2.set_ylabel('Validation Loss')
-        ax2.set_title('Average Validation Loss vs ephocs')
+        ax2.set_ylabel('Testing Prediction Loss')
+        ax2.set_title('Average Testing Prediction Loss per subsequence vs Ephocs')
         ax2.legend()
 
         # Adjust layout for better spacing
@@ -211,5 +269,4 @@ def C4():
         plt.show()
 
 
-
-C2()
+C4()

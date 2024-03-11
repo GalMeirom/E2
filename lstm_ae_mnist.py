@@ -16,7 +16,7 @@ def Q1C1():
     seq_length = 28
     input_size = 28
     
-    epochs = 15
+    epochs = 25
     models_dict = {}
 
     param_grid = {
@@ -35,6 +35,7 @@ def Q1C1():
     for params in ParameterGrid(param_grid):
         print(str(params))
         model = lstm.LSTM_Model(**params)
+        model.model.double()
         model.train(train_dataloader, epochs)
         #models_dict[str(params)] = [model, model.eval(testloader)]
         ut.reImage(model, testloader)
@@ -47,7 +48,7 @@ def Q1C2():
     seq_length = 28
     input_size = 28
     
-    epochs = 40
+    epochs = 25
 
     param_grid = {
     'input_size': [input_size],
@@ -61,32 +62,40 @@ def Q1C2():
 
     }
 
-    accuracies = []
-    label_losses = []
+    train_accuracies = []
+    train_label_losses = []
+    val_accuracies = []
+    val_label_losses = []
     for params in ParameterGrid(param_grid):
         model = lstm.LSTM_Model_wPred(**params)
+        model.model.double()
         for i in range(epochs):
             avg_label_train_loss, avg_rec_train_loss = model.train(train_dataloader)
             print(f'Epoch [{i+1}/{epochs}], AVG Label Training Loss: {avg_label_train_loss}')
             print(f'Epoch [{i+1}/{epochs}], AVG Reconstruct Training Loss: {avg_rec_train_loss}')
+            accuracy, label_loss = model.pred(train_dataloader)
+            accuracy = accuracy* 100
+            train_accuracies.append(accuracy)
+            train_label_losses.append(label_loss)
             accuracy, label_loss = model.pred(testloader)
             accuracy = accuracy* 100
-            print(accuracy)
             #ut.reImage(model, testloader)
-            accuracies.append(accuracy)
-            label_losses.append(label_loss)
+            val_accuracies.append(accuracy)
+            val_label_losses.append(label_loss)
 
     fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(8, 6))
 
     # Plot the first Y array on the first subplot
-    ax1.plot(range(1, epochs+1), accuracies, label='Accuracy', color='blue')
+    ax1.plot(range(1, epochs+1), train_accuracies, label='Train Samples Accuracy')
+    ax1.plot(range(1, epochs+1), val_accuracies, label='Test Samples Accuracy')
     ax1.set_xlabel('Ephocs')
     ax1.set_ylabel('Precent')
     ax1.set_title('Accuracy vs ephocs')
     ax1.legend()
 
     # Plot the second Y array on the second subplot
-    ax2.plot(range(1, epochs+1), label_losses, label='CE Loss', color='red')
+    ax2.plot(range(1, epochs+1), train_label_losses, label='Train CE Classification Loss')
+    ax2.plot(range(1, epochs+1), val_label_losses, label='Test CE Classification Loss')
     ax2.set_xlabel('Ephocs')
     ax2.set_ylabel('CE Loss')
     ax2.set_title('Average CE Loss vs ephocs')
@@ -122,6 +131,7 @@ def Q1C3():
     label_losses = []
     for params in ParameterGrid(param_grid):
         model = lstm.LSTM_Model_wPred(**params)
+        model.model.double()
         for i in range(epochs):
             avg_label_train_loss, avg_rec_train_loss = model.train(train_dataloader)
             print(f'Epoch [{i+1}/{epochs}], AVG Label Training Loss: {avg_label_train_loss}')
